@@ -1,0 +1,5 @@
+MARCONI/Debug/*
+MARCONI/.settings/*
+.metadata/
+MARCONI\ Debug.launch
+.DS_Store
