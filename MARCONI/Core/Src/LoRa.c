@@ -62,16 +62,20 @@ static uint8_t write_register(LORA_t *dev, uint8_t *buf, uint8_t len) {
 	return result;
 }
 
-void LORA_init(LORA_t *dev, UART_HandleTypeDef *huart, GPIO_TypeDef *port, uint16_t pin) {
+void LORA_init(LORA_t *dev, UART_HandleTypeDef *huart, GPIO_TypeDef *aux_port, GPIO_TypeDef *m0_port, GPIO_TypeDef *m1_port, uint16_t aux_pin, uint16_t m0_pin, uint16_t m1_pin) {
 
 	dev -> handler = huart;
-	dev -> gpio_port = port;
-	dev -> gpio_pin = pin;
+	dev -> aux_gpio_port = aux_port;
+	dev -> m0_gpio_port = m0_port;
+	dev -> m1_gpio_port = m1_port;
+	dev -> aux_gpio_pin = aux_pin;
+	dev -> m0_gpio_pin = m0_pin;
+	dev -> m1_gpio_pin = m1_pin;
 }
 
-static GPIO_PinState read_AUX_pin(LORA_t *dev) {
+GPIO_PinState read_AUX_pin(LORA_t *dev) {
 
-	return HAL_GPIO_ReadPin(dev -> gpio_port, dev -> gpio_pin);
+	return HAL_GPIO_ReadPin(dev -> aux_gpio_port, dev -> aux_gpio_pin);
 }
 
 uint8_t switch_frequency(LORA_t *dev, float freq) {
@@ -107,6 +111,127 @@ uint8_t switch_frequency(LORA_t *dev, float freq) {
 			result = HAL_OK;
 		}
 	}
+
+	return result;
+}
+
+uint8_t change_baud_rate(LORA_t *dev, LORA_BAUD_RATE baud_rate) {
+
+	uint8_t result = HAL_ERROR;
+
+	/* read the related register, keep the other bits and modify only the baud rate bits with proper mask */
+
+	uint8_t rate = 0;
+
+	if (read_register(dev, REG0, &rate, 1) == HAL_OK) {
+		result = HAL_OK;
+
+		rate &= 0x1F;
+		rate |= (baud_rate << 5);
+
+		uint8_t buf[4] = {REGISTER_WRITE_COMMAND, REG0, 1, rate};
+
+		result = write_register(dev, buf, 4);
+
+		// add check for response
+	}
+
+	return result;
+}
+
+uint8_t change_air_data_rate(LORA_t* dev, LORA_AIR_DATA_RATE data_rate) {
+
+	uint8_t result = HAL_ERROR;
+
+	uint8_t rate = 0;
+
+	if (read_register(dev, REG0, &rate, 1) == HAL_OK) {
+		result = HAL_OK;
+
+		rate &= 0xF8;
+		rate |= data_rate;
+
+		uint8_t buf[4] = {REGISTER_WRITE_COMMAND, REG0, 1, rate};
+
+		result = write_register(dev, buf, 4);
+
+		// add check for response
+	}
+
+	return result;
+}
+
+uint8_t change_packet_size(LORA_t* dev, LORA_PACKET_SIZE packet_size) {
+
+	uint8_t result = HAL_ERROR;
+
+	uint8_t size = 0;
+
+	if (read_register(dev, REG1, &size, 1) == HAL_OK) {
+		result = HAL_OK;
+
+		//possibly add a control that check whether the value we want to set is already set
+
+		size &= 0x3F;
+		size |= (packet_size << 6);
+
+		uint8_t buf[4] = {REGISTER_WRITE_COMMAND, REG1, 1, size};
+
+		result = write_register(dev, buf, 4);
+
+		// add check for response
+	}
+
+	return result;
+}
+
+uint8_t change_transmission_power(LORA_t* dev, LORA_TRANSMISSION_POWER power) {
+
+	uint8_t result = HAL_ERROR;
+
+	uint8_t curr_power = 0;
+
+	if (read_register(dev, REG1, &curr_power, 1) == HAL_OK) {
+		result = HAL_OK;
+
+		//possibly add a control that check whether the value we want to set is already set
+
+		curr_power &= 0xFC;
+		curr_power |= power;
+
+		uint8_t buf[4] = {REGISTER_WRITE_COMMAND, REG1, 1, curr_power};
+
+		result = write_register(dev, buf, 4);
+
+		// add check for response
+	}
+
+	return result;
+}
+
+uint8_t change_operating_mode(LORA_t* dev, LORA_OPERATING_MODE mode) {
+
+	uint8_t result = HAL_ERROR;
+
+	uint8_t mode0 = mode & 0x01;
+	uint8_t mode1 = mode & 0x02;
+
+	HAL_GPIO_WritePin(dev -> m0_gpio_port, dev -> m0_gpio_pin, (mode0 == 0 ? GPIO_PIN_RESET : GPIO_PIN_SET));
+	HAL_GPIO_WritePin(dev -> m1_gpio_port, dev -> m1_gpio_pin, (mode1 == 0 ? GPIO_PIN_RESET : GPIO_PIN_SET));
+
+	return result;
+}
+
+uint8_t transmit_packet(LORA_t *dev, uint8_t *buf) {
+
+	uint8_t result = HAL_ERROR;
+
+	return result;
+}
+
+uint8_t receive_packet(LORA_t *dev, uint8_t *buf) {
+
+	uint8_t result = HAL_ERROR;
 
 	return result;
 }
