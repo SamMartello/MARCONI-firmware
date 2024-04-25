@@ -133,4 +133,8 @@ void LORA_init(LORA_t *dev, UART_HandleTypeDef *huart, GPIO_TypeDef *port, uint1
 
 uint8_t switch_frequency(LORA_t *dev, float frequency);
 
-#endif /* INC_LORA_H_ */
+uint8_t transmit_packet(LORA_t *dev, uint8_t *buf);
+
+uint8_t receive_packet(LORA_t *dev, uint8_t *buf);
+
+#endif /* LORA_H */
