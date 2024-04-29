@@ -14,23 +14,14 @@
 
 /* 	FACTORY DEFAULT PARAMETER
  *
- * 		FREQUENCY	ADDRESS		CHANNEL		AIR_RATE		BAUD_RATE	SERIAL_FORMAT	POWER
- * 		873.125MHz	0x0000		0x17			2.4kbps			9600			8N1			30dBm
+ * 		FREQUENCY		ADDRESS		CHANNEL		AIR_RATE		BAUD_RATE	SERIAL_FORMAT	POWER
+ * 		873.125MHz		0x0000		0x17		2.4kbps			9600			8N1			30dBm
  *
  */
 
 /* REGISTER REG0 CONFIGURATION */
 
 /* UART Serial Port Baud Rate (bps) REG0 | b7 | b6 | b5 | */
-
-//#define BAUD_RATE_1200		0b000
-//#define BAUD_RATE_2400		0b001
-//#define BAUD_RATE_4800		0b010
-//#define BAUD_RATE_9600		0b011	/* DEFAULT */
-//#define BAUD_RATE_19200		0b100
-//#define BAUD_RATE_38400		0b101
-//#define BAUD_RATE_57600		0b110
-//#define BAUD_RATE_115200		0b111
 
 typedef enum {
 	BAUD_RATE_1200 = 0b000,
@@ -44,15 +35,6 @@ typedef enum {
 } LORA_BAUD_RATE;
 
 /* Air Data Rate (bps) REG0 | b2 | b1 | b0 | */
-
-//#define AIR_DATA_RATE_2_4K	0b000
-//#define AIR_DATA_RATE_2_4K	0b001
-//#define AIR_DATA_RATE_2_4K	0b010	/* DEFAULT */
-//#define AIR_DATA_RATE_4_8K	0b011
-//#define AIR_DATA_RATE_9_6K	0b100
-//#define AIR_DATA_RATE_19_2K	0b101
-//#define AIR_DATA_RATE_38_4K	0b110
-//#define AIR_DATA_RATE_62_5K	0b111
 
 typedef enum {
 	AIR_DATA_RATE_2_4K_0 = 0b000,
@@ -69,11 +51,6 @@ typedef enum {
 
 /* Sub-Packet Setting REG1 | b7 | b6 | */
 
-//#define PACKET_SIZE_200_BYTES		0b00		/* DEFAULT */
-//#define PACKET_SIZE_128_BYTES		0b01
-//#define PACKET_SIZE_64_BYTES		0b10
-//#define PACKET_SIZE_32_BYTES		0b11
-
 typedef enum {
 	PACKET_SIZE_200_BYTES = 0b00,		/* DEFAULT */
 	PACKET_SIZE_128_BYTES = 0b01,
@@ -82,11 +59,6 @@ typedef enum {
 } LORA_PACKET_SIZE;
 
 /* Transmitting Power REG1 | b1 | b0 | */
-
-//#define TRANSMISSION_POWER_30dBm		0b00		/* DEFAULT */
-//#define TRANSMISSION_POWER_27dBm		0b01
-//#define TRANSMISSION_POWER_24dBm		0b10
-//#define TRANSMISSION_POWER_21dBm		0b11
 
 typedef enum {
 	TRANSMISSION_POWER_30dBm = 0b00,		/* DEFAULT */
@@ -112,11 +84,6 @@ typedef enum {
 
 #define WRONG_FORMAT_RESPONDS	0XFFFFFF
 #define LORA_TIMEOUT_MS			100
-
-//#define MODE_NORMAL				0b00
-//#define MODE_SENDING			0b01
-//#define MODE_RECEIVING			0b10
-//#define MODE_DEEP_SLEEP			0b11
 
 typedef enum {
 	MODE_NORMAL	= 0b00,
