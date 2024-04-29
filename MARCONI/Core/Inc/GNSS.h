@@ -46,4 +46,35 @@
 #define RMC		"GPRMC"		/* default: ON  | Recommended minimum specific GNSS data */
 #define ZDA		"GPZDA"		/* default: OFF | time and date */
 
+typedef struct {
+	UART_HandleTypeDef *handler;
+
+	/* do we need to put string termination character \0 ? */
+	uint8_t utc_time[9];
+	uint8_t latitude[7];
+	uint8_t latitude_dir;
+	uint8_t longitude[7];
+	uint8_t longitude_dir;
+	uint8_t altitude[6];
+	uint8_t altitude_meas_unit;
+} gnss_t;
+
+typedef struct {
+	uint8_t latitude[8];
+	uint8_t lat_dir;
+	uint8_t longitude[9];
+	uint8_t lon_dir;
+	uint8_t altitude[4];
+	uint8_t day[2];
+	uint8_t month[2];
+	uint8_t year[4];
+	uint8_t hour[2];
+	uint8_t minute[2];
+	uint8_t second[2];
+} config_params_t;
+
+uint8_t gnss_init(gnss_t *dev, UART_HandleTypeDef *huart);
+
+uint8_t gnss_set_init_position_time(gnss_t *dev, config_params_t *params);
+
 #endif /* GNSS_H */
