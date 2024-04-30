@@ -10,7 +10,6 @@
 #ifndef GNSS_H
 #define GNSS_H
 
-#include <stdint.h>
 #include "stm32g0xx.h"
 #include "main.h"
 
@@ -100,17 +99,17 @@ typedef struct {
 } gnss_t;
 
 typedef struct {
-	uint8_t latitude[8];
+	float latitude;
 	uint8_t lat_dir;
-	uint8_t longitude[9];
+	float longitude;
 	uint8_t lon_dir;
-	uint8_t altitude[4];
-	uint8_t day[2];
-	uint8_t month[2];
-	uint8_t year[4];
-	uint8_t hour[2];
-	uint8_t minute[2];
-	uint8_t second[2];
+	uint16_t altitude;
+	uint8_t day;
+	uint8_t month;
+	uint16_t year;
+	uint8_t hour;
+	uint8_t minute;
+	uint8_t second;
 } config_params_t;
 
 uint8_t gnss_init(gnss_t *dev, UART_HandleTypeDef *huart);
@@ -122,5 +121,9 @@ uint8_t gnss_change_baud_rate(gnss_t *dev, GNSS_NMEA_BAUD_RATE rate);
 uint8_t gnss_set_nmea_messages(gnss_t *dev, uint32_t msg_mask);
 
 uint8_t parse_gga_message(gnss_t *dev, uint8_t *msg);
+
+uint8_t parse_gll_message(gnss_t *dev, uint8_t *msg);
+
+uint8_t assemble_ground_station_packet(gnss_t *dev, uint8_t *buf);
 
 #endif /* GNSS_H */
