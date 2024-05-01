@@ -8,8 +8,6 @@
 #ifndef LORA_H
 #define LORA_H
 
-#include "stm32g0xx_hal.h"
-#include <stdint.h>
 #include "main.h"
 
 /* 	FACTORY DEFAULT PARAMETER
