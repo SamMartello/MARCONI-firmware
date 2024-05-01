@@ -10,7 +10,6 @@
 #ifndef GNSS_H
 #define GNSS_H
 
-#include "stm32g0xx.h"
 #include "main.h"
 
 #define GPS_TIME_POS_INIT			"$PSTMINITGPS"
@@ -87,13 +86,14 @@ typedef struct {
 	UART_HandleTypeDef *handler;
 
 	/* do we need to put string termination character \0 ? */
-	uint8_t utc_time[11];
+	/* uint8_t utc_time[11]; */ /* hour + minute + second + millisecond */
+	uint8_t utc_time[7]; /* hour + minute + second */
 	uint8_t latitude[11];
-	uint8_t latitude_dir;
+	uint8_t latitude_dir[2];
 	uint8_t longitude[11];
-	uint8_t longitude_dir;
+	uint8_t longitude_dir[2];
 	uint8_t altitude[7];
-	uint8_t altitude_meas_unit;
+	uint8_t altitude_meas_unit[2];
 
 	/* add write and read function */
 } gnss_t;
@@ -124,6 +124,6 @@ uint8_t parse_gga_message(gnss_t *dev, uint8_t *msg);
 
 uint8_t parse_gll_message(gnss_t *dev, uint8_t *msg);
 
-uint8_t assemble_ground_station_packet(gnss_t *dev, uint8_t *buf);
+uint8_t assemble_gnss_packet(gnss_t *dev, uint8_t *buf);
 
 #endif /* GNSS_H */
