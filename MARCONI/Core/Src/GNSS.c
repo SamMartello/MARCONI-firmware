@@ -9,6 +9,11 @@
 #include "GNSS.h"
 #endif
 
+#define TIMESTAMP_PACKET 	"TIME:"
+#define LATITUDE_PACKET 	",LATITUDE:"
+#define LONGITUDE_PACKET	",LONGITUDE:"
+#define ALTITUDE_PACKET		",ALTITUDE:"
+
 uint8_t gnss_init(gnss_t *dev, UART_HandleTypeDef *huart) {
 
 	dev -> handler = huart;
@@ -146,25 +151,24 @@ uint8_t assemble_gnss_packet(gnss_t *dev, uint8_t *buf) {
 
 	uint8_t result = HAL_ERROR;
 
-	const uint8_t time[6] = "TIME:";
-	const uint8_t lat[11] = ",LATITUDE:";
-	const uint8_t lon[12] = ",LONGITUDE:";
-	const uint8_t alt[11] = ",ALTITUDE:";
+	/* packet structure
+	 * TIME:HHMMSS,LATITUDE:DDMM.MMMMM,D,LONGITUDE:DDMM.MMMMM,D,AAAAAA
+	 */
 
-	strcat((char *)buf, (const char *)time);
+	/* could be useful to add a termination character and also a starting character? */
+
+	strcat((char *)buf, (const char *)TIMESTAMP_PACKET);
 	strcat((char *)buf, (const char *)dev -> utc_time);
-	strcat((char *)buf, (const char *)lat);
+	strcat((char *)buf, (const char *)LATITUDE_PACKET);
 	strcat((char *)buf, (const char *)dev -> latitude);
 	strcat((char *)buf, (const char *)",");
 	strcat((char *)buf, (const char *)dev -> latitude_dir);
-	strcat((char *)buf, (const char *)lon);
+	strcat((char *)buf, (const char *)LONGITUDE_PACKET);
 	strcat((char *)buf, (const char *)dev -> longitude);
 	strcat((char *)buf, (const char *)",");
 	strcat((char *)buf, (const char *)dev -> longitude_dir);
-	strcat((char *)buf, (const char *)alt);
+	strcat((char *)buf, (const char *)ALTITUDE_PACKET);
 	strcat((char *)buf, (const char *)dev -> altitude);
-
-	/* packet structure */
 
 	return result;
 }
