@@ -38,42 +38,45 @@ uint8_t gnss_set_init_position_time(gnss_t *dev, config_params_t *params) {
 	uint8_t minute[3] = {0};
 	uint8_t second[3] = {0};
 
-	sprintf(latitude, "%8.3f", params -> latitude);
+	sprintf((char *)latitude, "%8.3f", params -> latitude);
 	lat_dir[0] = params -> lat_dir;
-	sprintf(longitude, "%9.3f", params -> longitude);
+	sprintf((char *)longitude, "%9.3f", params -> longitude);
 	lon_dir[0] = params -> lon_dir;
-	sprintf(altitude, "%d", params -> altitude);
-	sprintf(day, "%d", params -> day);
-	sprintf(month, "%d", params -> month);
-	sprintf(year, "%d", params -> year);
-	sprintf(hour, "%d", params -> hour);
-	sprintf(minute, "%d", params -> minute);
-	sprintf(second, "%d", params -> second);
 
-	strcat(buf, GPS_TIME_POS_INIT);
-	strcat(buf, ",");
-	strcat(buf, latitude);
-	strcat(buf, ",");
-	strcat(buf, lat_dir);
-	strcat(buf, ",");
-	strcat(buf, longitude);
-	strcat(buf, ",");
-	strcat(buf, lon_dir);
-	strcat(buf, ",");
-	strcat(buf, altitude);
-	strcat(buf, ",");
-	strcat(buf, day);
-	strcat(buf, ",");
-	strcat(buf, month);
-	strcat(buf, ",");
-	strcat(buf, year);
-	strcat(buf, ",");
-	strcat(buf, hour);
-	strcat(buf, ",");
-	strcat(buf, minute);
-	strcat(buf, ",");
-	strcat(buf, second);
-	strcat(buf, "\r\n");
+	/* when integer transformed into string we have no leading zeros to make the string with a fixed size
+	 * FIXED: fixed using format specifier */
+	sprintf((char *)altitude, "%04d", params -> altitude);
+	sprintf((char *)day, "%02d", params -> day);
+	sprintf((char *)month, "%02d", params -> month);
+	sprintf((char *)year, "%04d", params -> year);
+	sprintf((char *)hour, "%02d", params -> hour);
+	sprintf((char *)minute, "%02d", params -> minute);
+	sprintf((char *)second, "%02d", params -> second);
+
+	strcat((char *)buf, (const char *)GPS_TIME_POS_INIT);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)latitude);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)lat_dir);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)longitude);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)lon_dir);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)altitude);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)day);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)month);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)year);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)hour);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)minute);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)second);
+	strcat((char *)buf, (const char *)"\r\n");
 
 	// TODO build the initialization string for the gnss
 
@@ -92,7 +95,7 @@ uint8_t parse_gga_message(gnss_t *dev, uint8_t *msg) {
 	/* $GPGGA,<Timestamp>,<Lat>,<N/S>,<Long>,<E/W>,<GPSQual>,<Sats>,<HDOP>,<Alt>,<AltVal>,
 	 * <GeoSep>,<GeoVal>,<DGPSAge>,<DGPSRef>*<checksum><cr><lf> */
 
-	if (strncmp(msg, GGA, strlen(GGA)) == 0) {
+	if (strncmp((const char *)msg, (const char *)GGA, strlen(GGA)) == 0) {
 		result = HAL_OK;
 	} else {
 		return result;
@@ -102,13 +105,14 @@ uint8_t parse_gga_message(gnss_t *dev, uint8_t *msg) {
 	/* still to understand whether the latitude and longitude return a string of 10 characters or 11, in the case below
 	 * 10 character is assumed */
 
-	memcpy(dev -> utc_time, &msg[7], 10);	/* copy the time in the related variable */
+	/* memcpy(dev -> utc_time, &msg[7], 10);	/* copy the time in the related variable */
+	memcpy(dev -> utc_time, &msg[7], 6);	/* copy the time in the related variable, do not copy millisecond */
 	memcpy(dev -> latitude, &msg[18], 10);
-	dev -> latitude_dir = msg[29];
+	memcpy(dev -> latitude_dir, &msg[29], 1);
 	memcpy(dev -> longitude, &msg[31], 10);
-	dev -> longitude_dir = msg[42];
+	memcpy(dev -> longitude_dir, &msg[42], 1);
 	memcpy(dev -> altitude, &msg[54], 6);
-	dev -> altitude_meas_unit = msg[61];
+	memcpy(dev -> altitude_meas_unit, &msg[61], 1);
 
 	return result;
 }
@@ -120,7 +124,7 @@ uint8_t parse_gll_message(gnss_t *dev, uint8_t *msg) {
 	/* $GPGLL,<Lat>,<N/S>,<Long>,<E/W>,<Timestamp>,<Status>,<mode indicator>*<checksum><cr><lf> */
 	/* example: $GPGLL,4055.04673,N,01416.54941,E,110505.000,A,A*54 */
 
-	if (strncmp(msg, GLL, strlen(GLL)) == 0) {
+	if (strncmp((const char *)msg, (const char *)GLL, strlen(GLL)) == 0) {
 		result = HAL_OK;
 	} else {
 		return result;
@@ -130,17 +134,35 @@ uint8_t parse_gll_message(gnss_t *dev, uint8_t *msg) {
 	 * 10 character is assumed */
 
 	memcpy(dev -> latitude, &msg[7], 10);
-	dev -> latitude_dir = msg[18];
+	memcpy(dev -> latitude_dir, &msg[18], 1);
 	memcpy(dev -> longitude, &msg[20], 10);
-	dev -> longitude_dir = msg[31];
+	memcpy(dev -> longitude_dir, &msg[31], 1);
 	memcpy(dev -> utc_time, &msg[33], 10);
 
 	return result;
 }
 
-uint8_t assemble_ground_station_packet(gnss_t *dev, uint8_t *buf) {
+uint8_t assemble_gnss_packet(gnss_t *dev, uint8_t *buf) {
 
 	uint8_t result = HAL_ERROR;
+
+	const uint8_t time[6] = "TIME:";
+	const uint8_t lat[11] = ",LATITUDE:";
+	const uint8_t lon[12] = ",LONGITUDE:";
+	const uint8_t alt[11] = ",ALTITUDE:";
+
+	strcat((char *)buf, (const char *)time);
+	strcat((char *)buf, (const char *)dev -> utc_time);
+	strcat((char *)buf, (const char *)lat);
+	strcat((char *)buf, (const char *)dev -> latitude);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)dev -> latitude_dir);
+	strcat((char *)buf, (const char *)lon);
+	strcat((char *)buf, (const char *)dev -> longitude);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)dev -> longitude_dir);
+	strcat((char *)buf, (const char *)alt);
+	strcat((char *)buf, (const char *)dev -> altitude);
 
 	/* packet structure */
 
