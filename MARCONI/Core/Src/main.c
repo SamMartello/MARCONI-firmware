@@ -32,7 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+void UART_Callback(UART_HandleTypeDef *huart);
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -44,6 +44,7 @@
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 USART_HandleTypeDef husart3;
+UART_HandleTypeDef huart4;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -53,7 +54,9 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4
 };
 /* USER CODE BEGIN PV */
-
+gnss_t gnss = {0};
+LORA_t lora = {0};
+uint8_t buf[20] = {0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -62,6 +65,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_USART3_Init(void);
+static void MX_USART4_UART_Init(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
@@ -105,12 +109,61 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USART2_UART_Init();
   MX_USART3_Init();
+  MX_USART4_UART_Init();
   /* USER CODE BEGIN 2 */
+
+
+
+  gnss_init(&gnss, &huart2);
+
+
+
+
+/*
+  //  LORA_init(&lora, &huart1, LoRa_AUX_GPIO_Port, LoRa_M0_GPIO_Port, LoRa_M1_GPIO_Port, LoRa_AUX_Pin, LoRa_M0_Pin, LoRa_M1_Pin);
+
+//  change_operating_mode(&lora, MODE_DEEP_SLEEP);
+//
+//  //if we read registers without some delay some registers are not read, probably due to AUX pin
+//
+//  change_address(&lora, 0xFFFF); // 0xFFFF broadcast address
+//
+//  change_frequency(&lora, 873.125);
+//
+//  uint16_t address = 0;
+//  uint8_t channel = 0;
+//
+//  get_address(&lora, &address);
+//
+//  get_channel(&lora, &channel);
+//
+//  change_operating_mode(&lora, MODE_NORMAL);
+
+//  uint8_t tx_buf[100] = "LoRa transmission test\nWill the rocket reach the Portugal?\n";
+
+//  while(1) {
+//	  HAL_UART_Transmit(&huart1, tx_buf, 59, 1000);
+//
+//	  HAL_Delay(5000);
+//  }
+
+//  uint8_t rx_buf[100] = {0};
+//
+//  uint8_t result = HAL_ERROR;
+
+//  while(1) {
+//	  do {
+//		result = HAL_UART_Receive(&huart1, rx_buf, 100, 4000);
+//	  } while (result != HAL_OK && result != HAL_TIMEOUT);
+//	  HAL_Delay(2000);
+//  }
+
+  */
 
   /* USER CODE END 2 */
 
   /* Init scheduler */
-  osKernelInitialize();
+//  osKernelInitialize();
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -130,7 +183,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+//  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -141,7 +194,7 @@ int main(void)
   /* USER CODE END RTOS_EVENTS */
 
   /* Start scheduler */
-  osKernelStart();
+//  osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
 
@@ -333,6 +386,42 @@ static void MX_USART3_Init(void)
 }
 
 /**
+  * @brief USART4 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART4_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART4_Init 0 */
+
+  /* USER CODE END USART4_Init 0 */
+
+  /* USER CODE BEGIN USART4_Init 1 */
+
+  /* USER CODE END USART4_Init 1 */
+  huart4.Instance = USART4;
+  huart4.Init.BaudRate = 115200;
+  huart4.Init.WordLength = UART_WORDLENGTH_8B;
+  huart4.Init.StopBits = UART_STOPBITS_1;
+  huart4.Init.Parity = UART_PARITY_NONE;
+  huart4.Init.Mode = UART_MODE_TX_RX;
+  huart4.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart4.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart4.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart4.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart4.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART4_Init 2 */
+
+  /* USER CODE END USART4_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -369,7 +458,14 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void UART_Callback(UART_HandleTypeDef *huart) {
+	HAL_UART_Transmit(&huart1, buf, 11, 300);
+	buf[0] = 0xC1;
+	buf[1] = 0x0;
+	buf[2] = 0x8;
+	HAL_UART_Transmit(&huart1, buf, 3, 300);
+	HAL_UART_Receive_IT(&huart1, buf, 11);
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

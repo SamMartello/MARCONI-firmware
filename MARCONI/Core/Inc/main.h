@@ -34,6 +34,9 @@ extern "C" {
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include "GNSS.h"
+#include "LoRa.h"
+#include "utils.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
