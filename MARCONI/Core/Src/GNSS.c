@@ -14,6 +14,102 @@
 #define LONGITUDE_PACKET	",LONGITUDE:"
 #define ALTITUDE_PACKET		",ALTITUDE:"
 
+static uint8_t gnss_write(gnss_t *dev, const uint8_t *buf, uint16_t timeout) {
+
+	uint8_t result = HAL_ERROR;
+
+	result = HAL_UART_Transmit(dev -> handler, buf, (uint16_t)sizeof(buf), (uint32_t) timeout);
+
+	return result;
+}
+
+static uint8_t gnss_read(gnss_t *dev, uint8_t *buf, uint16_t timeout) {
+
+	uint8_t result = HAL_ERROR;
+
+	//TODO implement using HAL_UART_Receive
+	//XXX better use tx_buf and rx_buf or just one buffer?
+
+	if (HAL_UART_Transmit(dev -> handler, buf, (uint16_t)sizeof(buf), (uint32_t) timeout) == HAL_OK) {
+		do {
+			result = HAL_UART_Receive(dev -> handler, buf, (uint16_t)sizeof(buf), (uint32_t) timeout);
+		} while (result != HAL_OK && result != HAL_TIMEOUT);
+	}
+
+	return result;
+}
+
+uint8_t set_parameter(gnss_t *dev, uint16_t id, uint8_t *buf) {
+
+	uint8_t result = HAL_ERROR;
+	uint8_t buf_id[7] = {0};
+
+	sprintf(buf_id, ",3%03d,", id);
+
+	return result;
+}
+
+uint8_t get_parameter(gnss_t *dev, CONFIG_BLOCK_TYPE type, uint16_t id) {
+
+	uint8_t result = HAL_ERROR;
+
+
+
+	return result;
+}
+
+uint8_t save_parameter(gnss_t *dev) {
+
+	uint8_t result = HAL_ERROR;
+//XXX	uint8_t response[17] = {0};
+	uint8_t response[20] = {0};
+
+	if (gnss_write(dev, (const uint8_t*)SAVE_SYSTEM_PARAMETERS, GNSS_TIMEOUT_MS) == HAL_OK) {
+		gnss_read(dev, response, GNSS_TIMEOUT_MS);
+		//XXX check result
+		if (strncmp((const char *)response, (const char *)SAVE_SYS_PARAMETERS_OK, strlen(SAVE_SYS_PARAMETERS_OK)) == 0) {
+			result = HAL_OK;
+		}
+		/*
+		 * XXX Try to read the response in a SAVE_SYS_PARAMETERS_OK size fit buffer instead of an oversized buffer
+		 * which can also fit SAVE_SYS_PARAMTERS_ERROR message. Then check for OK result, theoretically if the message
+		 * is the error one strncmp should still be able to "detect the error".
+		 */
+	}
+
+	return result;
+}
+
+uint8_t restore_factory_parameters(gnss_t *dev) {
+
+	uint8_t result = HAL_ERROR;
+	uint8_t response[20] = {0};
+
+	if (gnss_write(dev, (const uint8_t *)RESTORE_SYSTEM_PARAMETERS, GNSS_TIMEOUT_MS) == HAL_OK) {
+		gnss_read(dev, response, GNSS_TIMEOUT_MS);
+		//XXX check result
+		if (strncmp((const char *)response, (const char *)RESTORE_SYS_PARAMETERS_OK, strlen(RESTORE_SYS_PARAMETERS_OK)) == 0) {
+			result = HAL_OK;
+		}
+		/*
+		 * XXX Try to read the response in a RESTORE_SYS_PARAMETERS_OK size fit buffer instead of an oversized buffer
+		 * which can also fit RESTORE_SYS_PARAMETERS_ERROR message. Then check for OK result, theoretically if the message
+		 * is the error one strncmp should still be able to "detect the error".
+		 */
+
+		if (result == HAL_ERROR) {
+			return result;
+		}
+
+		result = HAL_ERROR;
+		if (gnss_write(dev, (const uint8_t *)GPS_SYS_REBOOT, GNSS_TIMEOUT_MS) == HAL_OK) {
+			result = HAL_OK;
+		}
+	}
+
+	return result;
+}
+
 uint8_t gnss_init(gnss_t *dev, UART_HandleTypeDef *huart) {
 
 	dev -> handler = huart;
@@ -89,6 +185,50 @@ uint8_t gnss_set_init_position_time(gnss_t *dev, config_params_t *params) {
 //	offset = snprintf(buf, 8, "%8.3f", params -> latitude);
 //	offset = snprintf(buf + offset, 1, "%c", params -> lat_dir);
 //	offset = snprintf(buf + offset, )
+
+	return result;
+}
+
+uint8_t gnss_set_nmea_messages(gnss_t *dev, uint32_t msg_mask_list_low, uint32_t msg_mask_list_high, uint8_t rate_scaler) {
+
+	uint8_t result = HAL_ERROR;
+
+	uint8_t listlow[9] = {0};
+	uint8_t listhigh[9] = {0};
+	uint8_t rate[4] = {0};
+//	uint8_t response[17] = {0};
+	uint8_t response[20] = {0};
+
+	uint8_t buf[39] = {0};
+
+	/* message synopsys
+	 * $PSTMCFGMSGL,<listid>,<rate>,<listlow>,<listhigh>*<checksum><cr><lf>
+	 * 						 cdb190   cdb201   cdb228
+	 */
+
+	sprintf((char *)listlow, "%08x", msg_mask_list_low);
+	sprintf((char *)listhigh, "%08x", msg_mask_list_high);
+	sprintf((char *)rate, "%03d", rate_scaler);
+
+	strcat((char *)buf, (const char *)CONFIG_MESSAGE_LIST);
+	strcat((char *)buf, (const char *)",0,");
+	strcat((char *)buf, (const char *)rate);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)listlow);
+	strcat((char *)buf, (const char *)",");
+	strcat((char *)buf, (const char *)listhigh);
+	strcat((char *)buf, (const char *)"\r\n");
+
+	//XXX /* send the string to the module via UART */
+
+	if (gnss_write(dev, (const uint8_t*)buf, GNSS_TIMEOUT_MS) == HAL_OK) {
+		gnss_read(dev, response, GNSS_TIMEOUT_MS);
+
+		if (strncmp((const char *)response, (const char *)MESSAGE_LIST_OK, sizeof(MESSAGE_LIST_OK)) == 0) {
+			result = HAL_OK;
+		}
+		// check the result message $PSTMCFGMSGLOK or $PSTMCFGMSGLERROR
+	}
 
 	return result;
 }
@@ -170,24 +310,7 @@ uint8_t assemble_gnss_packet(gnss_t *dev, uint8_t *buf) {
 	strcat((char *)buf, (const char *)ALTITUDE_PACKET);
 	strcat((char *)buf, (const char *)dev -> altitude);
 
+	result = HAL_OK;
+
 	return result;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
