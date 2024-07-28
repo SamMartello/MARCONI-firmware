@@ -8,7 +8,7 @@
 #ifndef LORA_H
 #define LORA_H
 
-#include "main.h"
+#include "stm32g0xx_hal.h"
 
 /* 	FACTORY DEFAULT PARAMETER
  *
@@ -22,14 +22,14 @@
 /* UART Serial Port Baud Rate (bps) REG0 | b7 | b6 | b5 | */
 
 typedef enum {
-	BAUD_RATE_1200 = 0b000,
-	BAUD_RATE_2400 = 0b001,
-	BAUD_RATE_4800 = 0b010,
-	BAUD_RATE_9600 = 0b011,	/* DEFAULT */
-	BAUD_RATE_19200	= 0b100,
-	BAUD_RATE_38400	= 0b101,
-	BAUD_RATE_57600	= 0b110,
-	BAUD_RATE_115200 = 0b111
+	LORA_BAUD_RATE_1200 = 0b000,
+	LORA_BAUD_RATE_2400 = 0b001,
+	LORA_BAUD_RATE_4800 = 0b010,
+	LORA_BAUD_RATE_9600 = 0b011,	/* DEFAULT */
+	LORA_BAUD_RATE_19200 = 0b100,
+	LORA_BAUD_RATE_38400 = 0b101,
+	LORA_BAUD_RATE_57600 = 0b110,
+	LORA_BAUD_RATE_115200 = 0b111
 } LORA_BAUD_RATE;
 
 /* Air Data Rate (bps) REG0 | b2 | b1 | b0 | */
@@ -68,20 +68,22 @@ typedef enum {
 /* REGISTER REG3 CONFIGURATION */
 
 /* Enable RSSI Byte REG3 | b7 | */
-
-#define RSSI_BYTE_DISABLE			0x0		/* DEFAULT */
-#define RSSI_BYTE_ENABLE			0x1
+typedef enum {
+	RSSI_BYTE_DISABLE = 0,			/* DEFAULT */
+	RSSI_BYTE_ENABLE = 1
+} LORA_RSSI;
 
 /* Transmission Method REG3 | b6 | */
-#define TRANSMISSION_METHOD_TRANSPARENT		0x0		/* DEFAULT */
-#define TRANSMISSION_METHOD_FIXED			0x1		/* During fixed transmission,
-													   the module recognizes the first 3 bytes of serial data as:
-													   address high + address low + channel,
-													   and use it as a wireless transmission target */
-
+typedef enum {
+	TX_METHOD_TRANSPARENT = 0x0,	/* DEFAULT */
+	TX_METHOD_FIXED = 0x1			/* During fixed transmission,
+									   the module recognizes the first 3 bytes of serial data as:
+									   address high + address low + channel,
+									   and use it as a wireless transmission target */
+} LORA_TX_METHOD;
 
 #define WRONG_FORMAT_RESPONDS	0XFFFFFF
-#define LORA_TIMEOUT_MS			100
+#define LORA_TIMEOUT_MS			1000
 
 typedef enum {
 	MODE_NORMAL	= 0b00,
@@ -94,8 +96,9 @@ typedef enum {
 #define FREQUENCY_DEFAULT		873.125f
 #define FREQUENCY_MAX			930.125f
 
-#define REGISTER_WRITE_COMMAND	0xC0
-#define REGISTER_READ_COMMAND	0xC1
+#define REG_WRITE_COMMAND		0xC0
+#define REG_READ_COMMAND		0xC1
+#define REG_TEMP_READ_COMMNAD	0xC2
 
 /* REGISTER DESCRIPTION */
 #define ADDRESS_HIGH	0x0
@@ -106,6 +109,18 @@ typedef enum {
 #define REG3			0x5
 #define CRYPTO_HIGH		0x6
 #define CRYPTO_LOW		0x7
+
+typedef struct {
+
+	uint16_t address;
+	LORA_BAUD_RATE baud_rate;
+	LORA_AIR_DATA_RATE data_rate;
+	LORA_PACKET_SIZE packet_size;
+	LORA_TRANSMISSION_POWER power;
+	LORA_OPERATING_MODE op_mode;
+	uint8_t tx_method;
+
+} LORA_parameters_t;
 
 typedef struct {
 
@@ -142,7 +157,33 @@ void LORA_init(LORA_t *dev, UART_HandleTypeDef *huart, GPIO_TypeDef *aux_port, G
 
 GPIO_PinState read_AUX_pin(LORA_t *dev);
 
-uint8_t switch_frequency(LORA_t *dev, float frequency);
+LORA_OPERATING_MODE get_op_mode(LORA_t *dev);
+
+uint8_t get_lora_parameters(LORA_t *dev, LORA_parameters_t *param);
+
+uint8_t get_tx_method(LORA_t *dev, LORA_TX_METHOD *tx_method);
+
+uint8_t get_transmission_power(LORA_t *dev, LORA_TRANSMISSION_POWER *tx_power);
+
+uint8_t get_packet_size(LORA_t *dev, LORA_PACKET_SIZE *size);
+
+uint8_t get_air_data_rate(LORA_t *dev, LORA_AIR_DATA_RATE *rate);
+
+uint8_t get_baud_rate(LORA_t *dev, LORA_BAUD_RATE *rate);
+
+uint16_t get_address(LORA_t *dev, uint16_t *addr);
+
+uint8_t get_channel(LORA_t *dev, uint8_t *channel);
+
+uint8_t RSSI_enable(LORA_t *dev, LORA_RSSI rssi);
+
+uint8_t change_tx_method(LORA_t *dev, LORA_TX_METHOD tx_method);
+
+uint8_t change_address(LORA_t *dev, uint16_t address);
+
+uint8_t change_frequency(LORA_t *dev, float frequency);
+
+uint8_t change_channel(LORA_t *dev, uint8_t channel);
 
 uint8_t change_baud_rate(LORA_t *dev, LORA_BAUD_RATE baud_rate);
 
@@ -154,8 +195,16 @@ uint8_t change_transmission_power(LORA_t* dev, LORA_TRANSMISSION_POWER power);
 
 uint8_t change_operating_mode(LORA_t* dev, LORA_OPERATING_MODE mode);
 
-uint8_t transmit_packet(LORA_t *dev, uint8_t *buf);
+uint8_t transmit_packet(LORA_t *dev, uint8_t *buf, uint8_t len);
 
-uint8_t receive_packet(LORA_t *dev, uint8_t *buf);
+uint8_t receive_packet(LORA_t *dev, uint8_t *buf, uint8_t len);
+
+uint8_t read_register(LORA_t *dev, uint8_t reg_addr, uint8_t *buf, uint8_t len);
+
+//uint8_t read_register_IT(LORA_t *dev, uint8_t reg_addr, uint8_t *buf, uint8_t len);
+
+uint8_t write_register(LORA_t *dev, uint8_t *buf, uint8_t len);
+
+//uint8_t write_register_IT(LORA_t *ev, uint8_t *buf, uint8_t len);
 
 #endif /* LORA_H */

@@ -21,7 +21,7 @@
  * 		If the module's address is set to 0xFFFF then it will receive data from all the devices which transmit on its channel
  */
 
-static uint8_t read_register(LORA_t *dev, uint8_t reg_addr, uint8_t *buf, uint8_t len) {
+uint8_t read_register(LORA_t *dev, uint8_t reg_addr, uint8_t *buf, uint8_t len) {
 
 	uint8_t result = HAL_ERROR;
 
@@ -30,21 +30,45 @@ static uint8_t read_register(LORA_t *dev, uint8_t reg_addr, uint8_t *buf, uint8_
 		 * Response: C1 + starting address + length + parameters
 	*/
 
-	uint8_t address[3] = {0xC1, 0x0, 0x0};
-	address[2] = reg_addr;
-	address[3] = len;
+//	uint8_t address[3] = {0xC1, 0x0, 0x0};
+//	address[1] = reg_addr;
+//	address[2] = len; // number of registers to be read
 
-	if (HAL_UART_Transmit(dev -> handler, address, sizeof(address) / sizeof(uint8_t), LORA_TIMEOUT_MS) == HAL_OK) {
-		if (HAL_UART_Receive(dev -> handler, buf, (sizeof(address) / sizeof(uint8_t)) + len, LORA_TIMEOUT_MS) == HAL_OK) {
-			result = HAL_OK;
-		}
+	uint8_t address[3] = {REG_READ_COMMAND, reg_addr, len};
+
+	if (HAL_UART_Transmit(dev -> handler, address, 3 /* sizeof(address) */, LORA_TIMEOUT_MS) == HAL_OK) {
+//		if (HAL_UART_Receive(dev -> handler, buf, 3 /* sizeof(address) */ + len, LORA_TIMEOUT_MS) == HAL_OK) {
+		do {
+			result = HAL_UART_Receive(dev -> handler, buf, 3 + len, LORA_TIMEOUT_MS);
+		} while (result != HAL_OK && result != HAL_TIMEOUT);
 	}
 
 	return result;
 }
 
-//FIXME check if length is correct
-static uint8_t write_register(LORA_t *dev, uint8_t *buf, uint8_t len) {
+//uint8_t read_register_IT(LORA_t *dev, uint8_t reg_addr, uint8_t *buf, uint8_t len) {
+//
+//	uint8_t result = HAL_ERROR;
+//
+//	/* Read Register
+//		 * Command: C1 + starting address + length
+//		 * Response: C1 + starting address + length + parameters
+//	*/
+//
+//	uint8_t address[3] = {0xC1, reg_addr, len};
+//
+//	if (HAL_UART_Transmit(dev -> handler, address, 3 /* sizeof(address) */, LORA_TIMEOUT_MS) == HAL_OK) {
+//		if (HAL_UART_Receive_IT(dev -> handler, buf, 3 + len) == HAL_OK) {
+//			result = HAL_OK;
+//		}
+//	}
+//
+//	return result;
+//}
+
+/* XXX In configuration mode (mode 3: MODE_DEEP_SLEEP, M1 = 1, M0 = 1, when setting (writing register only 9600 8N1 format is supported. */
+
+uint8_t write_register(LORA_t *dev, uint8_t *buf, uint8_t len) {
 
 	uint8_t result = HAL_ERROR;
 
@@ -54,9 +78,12 @@ static uint8_t write_register(LORA_t *dev, uint8_t *buf, uint8_t len) {
 	*/
 
 	if (HAL_UART_Transmit(dev -> handler, buf, len, LORA_TIMEOUT_MS) == HAL_OK) {
-		if (HAL_UART_Receive(dev -> handler, buf, len, LORA_TIMEOUT_MS) == HAL_OK) {
-			result = HAL_OK;
-		}
+//		if (HAL_UART_Receive(dev -> handler, buf, len, LORA_TIMEOUT_MS) == HAL_OK) {
+//			result = HAL_OK;
+//		}
+		do {
+			result = HAL_UART_Receive(dev -> handler, buf, len, LORA_TIMEOUT_MS);
+		} while (result != HAL_OK && result != HAL_TIMEOUT);
 	}
 
 	return result;
@@ -78,7 +105,255 @@ GPIO_PinState read_AUX_pin(LORA_t *dev) {
 	return HAL_GPIO_ReadPin(dev -> aux_gpio_port, dev -> aux_gpio_pin);
 }
 
-uint8_t switch_frequency(LORA_t *dev, float freq) {
+uint16_t get_address(LORA_t *dev, uint16_t* addr) {
+
+	uint8_t result = HAL_ERROR;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
+	uint8_t buf[5] = {0};
+
+	if (read_register(dev, ADDRESS_HIGH, buf, 2) == HAL_OK) {
+
+		*addr |= buf[3] << 8;
+		*addr |= buf[4];
+
+		result = HAL_OK;
+	}
+
+	return result;
+}
+
+uint8_t get_channel(LORA_t *dev, uint8_t *channel) {
+
+	uint8_t result = HAL_ERROR;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
+	uint8_t buf[4] = {0};
+
+	if (read_register(dev, REG2, buf, 1) == HAL_OK) {
+
+		*channel = buf[3];
+
+		result = HAL_OK;
+	}
+
+	return result;
+}
+
+LORA_OPERATING_MODE get_op_mode(LORA_t *dev) {
+
+	LORA_OPERATING_MODE op_mode = MODE_NORMAL;
+
+	GPIO_PinState m0 = HAL_GPIO_ReadPin(dev -> m0_gpio_port, dev -> m0_gpio_pin);
+	GPIO_PinState m1 = HAL_GPIO_ReadPin(dev -> m1_gpio_port, dev -> m1_gpio_pin);
+
+	if(m1 == GPIO_PIN_SET && m0 == GPIO_PIN_SET) {
+		op_mode = MODE_DEEP_SLEEP;
+	} else if (m1 == GPIO_PIN_SET && m0 == GPIO_PIN_RESET) {
+		op_mode = MODE_RECEIVING;
+	} else if (m1 == GPIO_PIN_RESET && m0 == GPIO_PIN_RESET) {
+		op_mode = MODE_SENDING;
+	}
+
+	return op_mode;
+}
+
+uint8_t get_tx_method(LORA_t *dev, LORA_TX_METHOD *tx_method) {
+
+	uint8_t result = HAL_ERROR;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
+	uint8_t buf[4] = {0};
+
+	if (read_register(dev, REG3, buf, 1) == HAL_OK) {
+
+		*tx_method = (buf[3] & 0x40) >> 6;
+
+		result = HAL_OK;
+	}
+
+	return result;
+}
+
+uint8_t get_transmission_power(LORA_t *dev, LORA_TRANSMISSION_POWER *tx_power) {
+
+	uint8_t result = HAL_ERROR;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
+	uint8_t buf[4] = {0};
+
+	if (read_register(dev, REG1, buf, 1) == HAL_OK) {
+
+		*tx_power = buf[3] & 0x03;
+
+		result = HAL_OK;
+	}
+
+	return result;
+}
+
+uint8_t get_packet_size(LORA_t *dev, LORA_PACKET_SIZE *size) {
+
+	uint8_t result = HAL_ERROR;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
+	uint8_t buf[4] = {0};
+
+	if (read_register(dev, REG1, buf, 1) == HAL_OK) {
+
+		*size = (buf[3] & 0xC0) >> 6;
+
+		result = HAL_OK;
+	}
+
+	return result;
+}
+
+uint8_t get_air_data_rate(LORA_t *dev, LORA_AIR_DATA_RATE *rate) {
+
+	uint8_t result = HAL_ERROR;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
+	uint8_t buf[4] = {0};
+
+	if (read_register(dev, REG0, buf, 1) == HAL_OK) {
+
+		*rate = buf[3] & 0x07;
+
+		result = HAL_OK;
+	}
+
+	return result;
+}
+
+uint8_t get_baud_rate(LORA_t *dev, LORA_BAUD_RATE* rate) {
+
+	uint8_t result = HAL_ERROR;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
+	uint8_t buf[4] = {0};
+
+	if (read_register(dev, REG0, buf, 1) == HAL_OK) {
+
+		*rate = (buf[3] & 0xE0) >> 5;
+
+		result = HAL_OK;
+	}
+
+	return result;
+}
+
+uint8_t RSSI_enable(LORA_t *dev, LORA_RSSI rssi) {
+
+	uint8_t result = HAL_ERROR;
+
+	uint8_t rssi_byte = 0;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
+	if (read_register(dev, REG3, &rssi_byte, 1) == HAL_OK) {
+
+		rssi_byte &= 0x7F;
+		rssi_byte |= rssi << 7;
+
+		uint8_t buf[4] = {REG_WRITE_COMMAND, REG3, 1, rssi_byte};
+
+		result = write_register(dev, buf, 4);
+	}
+
+	return result;
+}
+
+
+uint8_t change_tx_method(LORA_t *dev, LORA_TX_METHOD tx_method) {
+
+	uint8_t result = HAL_ERROR;
+
+	uint8_t method = 0;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
+	if (read_register(dev, REG3, &method, 1) == HAL_OK) {
+
+		method &= 0xBF;
+		method |= (tx_method << 6);
+
+		uint8_t buf[4] = {REG_WRITE_COMMAND, REG3, 1, method};
+
+		result = write_register(dev, buf, 4);
+	}
+
+	return result;
+}
+
+
+uint8_t change_address(LORA_t *dev, uint16_t address) {
+
+	uint8_t result = HAL_ERROR;
+
+	uint8_t addr_low = (address & 0x00FF);
+	uint8_t addr_high = (address >> 8);
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
+	uint8_t buf[5] = {REG_WRITE_COMMAND, ADDRESS_HIGH, 2, addr_high, addr_low};
+
+	result = write_register(dev, buf, 5);
+
+	// add check for response
+
+	return result;
+}
+
+
+uint8_t change_frequency(LORA_t *dev, float freq) {
 
 	uint8_t result = HAL_ERROR;
 
@@ -95,8 +370,14 @@ uint8_t switch_frequency(LORA_t *dev, float freq) {
 		channel_control = freq - FREQUENCY_BASE;
 	}
 
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
 	/* composition of packet to be sent to write_register function to actually set the new frequency */
-	uint8_t buf[4] = {REGISTER_WRITE_COMMAND, REG2, 1, channel_control};
+	uint8_t buf[4] = {REG_WRITE_COMMAND, REG2, 1, channel_control};
 
 	result = write_register(dev, buf, 4);
 
@@ -107,13 +388,14 @@ uint8_t switch_frequency(LORA_t *dev, float freq) {
 			result = HAL_ERROR;
 		}
 		/* otherwise we check that everything went good */
-		else if (buf[0] == REGISTER_READ_COMMAND && buf[1] == REG2 && buf[2] == 1 && buf[3] == channel_control) {
+		else if (buf[0] == REG_READ_COMMAND && buf[1] == REG2 && buf[2] == 1 && buf[3] == channel_control) {
 			result = HAL_OK;
 		}
 	}
 
 	return result;
 }
+
 
 uint8_t change_baud_rate(LORA_t *dev, LORA_BAUD_RATE baud_rate) {
 
@@ -123,13 +405,19 @@ uint8_t change_baud_rate(LORA_t *dev, LORA_BAUD_RATE baud_rate) {
 
 	uint8_t rate = 0;
 
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
 	if (read_register(dev, REG0, &rate, 1) == HAL_OK) {
-		result = HAL_OK;
+//		result = HAL_OK;
 
 		rate &= 0x1F;
 		rate |= (baud_rate << 5);
 
-		uint8_t buf[4] = {REGISTER_WRITE_COMMAND, REG0, 1, rate};
+		uint8_t buf[4] = {REG_WRITE_COMMAND, REG0, 1, rate};
 
 		result = write_register(dev, buf, 4);
 
@@ -138,6 +426,7 @@ uint8_t change_baud_rate(LORA_t *dev, LORA_BAUD_RATE baud_rate) {
 
 	return result;
 }
+
 
 uint8_t change_air_data_rate(LORA_t* dev, LORA_AIR_DATA_RATE data_rate) {
 
@@ -145,13 +434,19 @@ uint8_t change_air_data_rate(LORA_t* dev, LORA_AIR_DATA_RATE data_rate) {
 
 	uint8_t rate = 0;
 
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
+
 	if (read_register(dev, REG0, &rate, 1) == HAL_OK) {
 		result = HAL_OK;
 
 		rate &= 0xF8;
 		rate |= data_rate;
 
-		uint8_t buf[4] = {REGISTER_WRITE_COMMAND, REG0, 1, rate};
+		uint8_t buf[4] = {REG_WRITE_COMMAND, REG0, 1, rate};
 
 		result = write_register(dev, buf, 4);
 
@@ -161,11 +456,18 @@ uint8_t change_air_data_rate(LORA_t* dev, LORA_AIR_DATA_RATE data_rate) {
 	return result;
 }
 
+
 uint8_t change_packet_size(LORA_t* dev, LORA_PACKET_SIZE packet_size) {
 
 	uint8_t result = HAL_ERROR;
 
 	uint8_t size = 0;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
 
 	if (read_register(dev, REG1, &size, 1) == HAL_OK) {
 		result = HAL_OK;
@@ -175,7 +477,7 @@ uint8_t change_packet_size(LORA_t* dev, LORA_PACKET_SIZE packet_size) {
 		size &= 0x3F;
 		size |= (packet_size << 6);
 
-		uint8_t buf[4] = {REGISTER_WRITE_COMMAND, REG1, 1, size};
+		uint8_t buf[4] = {REG_WRITE_COMMAND, REG1, 1, size};
 
 		result = write_register(dev, buf, 4);
 
@@ -185,11 +487,18 @@ uint8_t change_packet_size(LORA_t* dev, LORA_PACKET_SIZE packet_size) {
 	return result;
 }
 
+
 uint8_t change_transmission_power(LORA_t* dev, LORA_TRANSMISSION_POWER power) {
 
 	uint8_t result = HAL_ERROR;
 
 	uint8_t curr_power = 0;
+
+	if (get_op_mode(dev) != MODE_DEEP_SLEEP) {
+		if (change_operating_mode(dev, MODE_DEEP_SLEEP) != HAL_OK) {
+			return HAL_ERROR;
+		}
+	}
 
 	if (read_register(dev, REG1, &curr_power, 1) == HAL_OK) {
 		result = HAL_OK;
@@ -199,7 +508,7 @@ uint8_t change_transmission_power(LORA_t* dev, LORA_TRANSMISSION_POWER power) {
 		curr_power &= 0xFC;
 		curr_power |= power;
 
-		uint8_t buf[4] = {REGISTER_WRITE_COMMAND, REG1, 1, curr_power};
+		uint8_t buf[4] = {REG_WRITE_COMMAND, REG1, 1, curr_power};
 
 		result = write_register(dev, buf, 4);
 
@@ -208,6 +517,7 @@ uint8_t change_transmission_power(LORA_t* dev, LORA_TRANSMISSION_POWER power) {
 
 	return result;
 }
+
 
 uint8_t change_operating_mode(LORA_t* dev, LORA_OPERATING_MODE mode) {
 
@@ -219,19 +529,35 @@ uint8_t change_operating_mode(LORA_t* dev, LORA_OPERATING_MODE mode) {
 	HAL_GPIO_WritePin(dev -> m0_gpio_port, dev -> m0_gpio_pin, (mode0 == 0 ? GPIO_PIN_RESET : GPIO_PIN_SET));
 	HAL_GPIO_WritePin(dev -> m1_gpio_port, dev -> m1_gpio_pin, (mode1 == 0 ? GPIO_PIN_RESET : GPIO_PIN_SET));
 
-	return result;
-}
+	result = HAL_OK;
 
-uint8_t transmit_packet(LORA_t *dev, uint8_t *buf) {
-
-	uint8_t result = HAL_ERROR;
+	while (read_AUX_pin(dev) == GPIO_PIN_RESET);
 
 	return result;
 }
 
-uint8_t receive_packet(LORA_t *dev, uint8_t *buf) {
+
+uint8_t transmit_packet(LORA_t *dev, uint8_t *buf, uint8_t len) {
 
 	uint8_t result = HAL_ERROR;
+
+	while (read_AUX_pin(dev) == GPIO_PIN_RESET);
+
+	result = HAL_UART_Transmit(dev -> handler, buf, len, LORA_TIMEOUT_MS);
+
+	return result;
+}
+
+
+uint8_t receive_packet(LORA_t *dev, uint8_t *buf, uint8_t len) {
+
+	uint8_t result = HAL_ERROR;
+
+	while (read_AUX_pin(dev) == GPIO_PIN_RESET);
+
+	do {
+		result = HAL_UART_Receive(dev -> handler, buf, len, LORA_TIMEOUT_MS);
+	} while (result != HAL_OK && result != HAL_TIMEOUT);
 
 	return result;
 }
