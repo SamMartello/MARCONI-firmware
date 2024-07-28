@@ -12,13 +12,15 @@
 
 #include "main.h"
 
+#define GNSS_TIMEOUT_MS				100
+
 #define GPS_TIME_POS_INIT			"$PSTMINITGPS"
 #define GPS_UTC_TIME_INIT			"$PSTMINITTIME"
 
 #define GPS_COLD_START				"$PSTMCOLD"
 #define GPS_WARM_START				"$PSTMWARM\r\n"
 #define GPS_HOT_START				"$PSTMHOT\r\n"
-#define GPS_SYS_RESET				"$PSTMSRR\r\n"
+#define GPS_SYS_REBOOT				"$PSTMSRR\r\n"
 #define GPS_ENGINE_RESET			"$PSTMGPSRESET\r\n"
 #define GPS_ENGINE_SUSPEND			"$PSTMGPSSUSPEND\r\n"
 #define GPS_ENGINE_RESTART			"$PSTMGPSRESTART\r\n"
@@ -27,14 +29,30 @@
 
 #define SET_SYSTEM_PARAMETERS		"$PSTMSETPAR"
 #define GET_SYSTEM_PARAMETERS		"$PSTMGETPART"
-#define SAVE_SYSTEM_PARAMETERS		"$PSTMSAVEPAR"
-#define RESTORE_SYSTEM_PARAMTERS	"$PSTMRESTOREPAR"
 
-#define RESTORE_SYSTEM_PARAMETERS	"$PSTMRESTOREPAR"
+#define SAVE_SYSTEM_PARAMETERS		"$PSTMSAVEPAR\r\n"
+#define SAVE_SYS_PARAMETERS_OK		"$PSTMSAVEPAROK\r\n"
+#define SAVE_SYS_PARAMTERS_ERROR	"$PSTMSAVEPARERROR\r\n"
+
+#define RESTORE_SYSTEM_PARAMETERS	"$PSTMRESTOREPAR\r\n"
+#define RESTORE_SYS_PARAMETERS_OK	"$PSTMRESTOREPAROK\r\n"
+#define RESTORE_SYS_PARAMETERS_ERR	"$PSTMRESTOREPARERROR\r\n"
+
+/* this command allows to define the message list, so we can decide which message we want to receive from the module */
+#define CONFIG_MESSAGE_LIST			"$PSTMCFGMSGL"
+#define MESSAGE_LIST_OK				"$PSTMCFGMSGLOK\r\n"
+#define MESSAGE_LIST_ERRROR			"$PSTMCFGMSGLERROR\r\n"
+
+/* page 85 */
+#define SET_GNSS_CONSTELLATION		"$PSTMCFGCONST"
+
 #define SEND_NMEA_MESSAGES			"$PSTMNMEAREQUEST"
 
 #define RF_TEST_MODE_ON				"$PSTMRFTESTON"
 #define RF_TEST_MODE_OFF			"$PSTMRFTESTOFF"
+
+//TODO implement setpar, getpar, savepar, setportcfg, resetpar functions
+// see each cdb id table to see if a system reset is required or not
 
 //XXX /* page 181 for NMEA Port Baudrate settings - CDB-ID 102 */
 //XXX /* page 190 for NMEA messages list - CDB-ID 201-228 */
@@ -49,20 +67,20 @@
  */
 
 typedef enum {
-	BAUD_RATE_300 = 0x0,
-	BAUD_RATE_600 = 0x1,
-	BAUD_RATE_1200 = 0x2,
-	BAUD_RATE_2400 = 0x3,
-	BAUD_RATE_4800 = 0x4,
-	BAUD_RATE_9600 = 0x5,
-	BAUD_RATE_14400 = 0x6,
-	BAUD_RATE_19200 = 0x7,
-	BAUD_RATE_38400 = 0x8,
-	BAUD_RATE_57600 = 0x9,
-	BAUD_RATE_115200 = 0xA,	/* DEFAULT */
-	BAUD_RATE_230400 = 0xB,
-	BAUD_RATE_460800 = 0xC,
-	BAUD_RATE_921600 = 0xD
+	GNSS_BAUD_RATE_300 = 0x0,
+	GNSS_BAUD_RATE_600 = 0x1,
+	GNSS_BAUD_RATE_1200 = 0x2,
+	GNSS_BAUD_RATE_2400 = 0x3,
+	GNSS_BAUD_RATE_4800 = 0x4,
+	GNSS_BAUD_RATE_9600 = 0x5,
+	GNSS_BAUD_RATE_14400 = 0x6,
+	GNSS_BAUD_RATE_19200 = 0x7,
+	GNSS_BAUD_RATE_38400 = 0x8,
+	GNSS_BAUD_RATE_57600 = 0x9,
+	GNSS_BAUD_RATE_115200 = 0xA,	/* DEFAULT */
+	GNSS_BAUD_RATE_230400 = 0xB,
+	GNSS_BAUD_RATE_460800 = 0xC,
+	GNSS_BAUD_RATE_921600 = 0xD
 } GNSS_NMEA_BAUD_RATE;
 
 typedef enum {
@@ -74,6 +92,12 @@ typedef enum {
 	GPGLL = 0x100000,
 	GPZDA = 0x1000000
 } NMEA_MESSAGE_LIST;
+
+typedef enum {
+	CURRENT_CONFIG = 0x1,
+	DEFAULT_CONFIG = 0x2,
+	NVM_STORED_CONFIG = 0x3
+} CONFIG_BLOCK_TYPE;
 
 
 /* STANDARD NMEA MESSAGE TALKER ID */
@@ -121,12 +145,20 @@ uint8_t gnss_set_init_position_time(gnss_t *dev, config_params_t *params);
 
 uint8_t gnss_change_baud_rate(gnss_t *dev, GNSS_NMEA_BAUD_RATE rate);
 
-uint8_t gnss_set_nmea_messages(gnss_t *dev, uint32_t msg_mask);
+uint8_t gnss_set_nmea_messages(gnss_t *dev, uint32_t msg_mask_list_low, uint32_t msg_mask_list_high, uint8_t rate_scaler);
 
 uint8_t parse_gga_message(gnss_t *dev, uint8_t *msg);
 
 uint8_t parse_gll_message(gnss_t *dev, uint8_t *msg);
 
 uint8_t assemble_gnss_packet(gnss_t *dev, uint8_t *buf);
+
+uint8_t set_parameter(gnss_t *dev, uint16_t id, uint8_t *buf);
+
+uint8_t get_parameter(gnss_t *dev, CONFIG_BLOCK_TYPE type, uint16_t id);
+
+uint8_t save_parameter(gnss_t *dev);
+
+uint8_t restore_factory_parameters(gnss_t *dev);
 
 #endif /* GNSS_H */
